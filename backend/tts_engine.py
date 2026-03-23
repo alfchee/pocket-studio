@@ -55,7 +55,16 @@ class TTSEngine:
 
 class DummyEngine(TTSEngine):
     name = "dummy"
-    builtin_voices: list[str] = []
+    builtin_voices = [
+        "alba",
+        "marius",
+        "javert",
+        "jean",
+        "fantine",
+        "cosette",
+        "eponine",
+        "azelma",
+    ]
     sample_rate = 24000
 
     def clone_to_safetensors(self, reference_wav: Path, safetensors_path: Path) -> None:

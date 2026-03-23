@@ -23,6 +23,16 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
+def _env_float(name: str, default: float) -> float:
+    value = os.getenv(name)
+    if value is None or value == "":
+        return default
+    try:
+        return float(value)
+    except ValueError:
+        return default
+
+
 def _env_path(name: str, default: str) -> Path:
     value = os.getenv(name)
     if value is None or value == "":
@@ -61,6 +71,13 @@ def create_app() -> FastAPI:
     engine_name = (os.getenv("TTS_ENGINE") or "dummy").strip().lower()
     max_audio_mb = _env_int("MAX_AUDIO_UPLOAD_SIZE_MB", 5)
     max_text_len = _env_int("MAX_TEXT_LENGTH", 5000)
+    min_ref_s = _env_float("MIN_REF_SECONDS", 5.0)
+    max_ref_s = _env_float("MAX_REF_SECONDS", 10.0)
+
+    min_speed = _env_float("MIN_SPEED", 0.5)
+    max_speed = _env_float("MAX_SPEED", 2.0)
+    min_temp = _env_float("MIN_TEMPERATURE", 0.0)
+    max_temp = _env_float("MAX_TEMPERATURE", 1.5)
 
     voices_dir.mkdir(parents=True, exist_ok=True)
 
@@ -73,7 +90,11 @@ def create_app() -> FastAPI:
 
     @app.get("/api/health")
     def health() -> dict:
-        return {"status": "ok"}
+        return {
+            "status": "ok",
+            "engine": getattr(engine, "name", engine_name),
+            "sample_rate": getattr(engine, "sample_rate", None),
+        }
 
     @app.get("/api/voices")
     def list_voices() -> list[dict]:
@@ -95,7 +116,7 @@ def create_app() -> FastAPI:
                     name = meta.get("name") or name
                 except Exception:
                     name = name
-            results.append({"voice_id": entry.name, "name": name})
+            results.append({"voice_id": entry.name, "name": name, "builtin": False})
         return results
 
     @app.post("/api/clone")
@@ -125,6 +146,22 @@ def create_app() -> FastAPI:
                 _normalize_audio_to_wav_24k_mono(in_path, ref_path)
             except Exception as e:
                 raise HTTPException(status_code=400, detail=f"Audio decode failed: {str(e)}")
+
+        try:
+            import wave
+
+            with wave.open(str(ref_path), "rb") as wf:
+                frames = wf.getnframes()
+                rate = wf.getframerate()
+            duration_s = (frames / rate) if rate else 0.0
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid WAV after normalization: {str(e)}")
+
+        if duration_s < min_ref_s or duration_s > max_ref_s:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Reference audio must be between {min_ref_s:.1f}s and {max_ref_s:.1f}s (got {duration_s:.2f}s)",
+            )
 
         embedding_path = voice_path / "voice.safetensors"
         try:
@@ -164,8 +201,22 @@ def create_app() -> FastAPI:
         if voice_state is None:
             raise HTTPException(status_code=404, detail="Unknown voice_id")
 
+        speed = payload.speed
+        if speed is not None:
+            if speed < min_speed:
+                speed = min_speed
+            elif speed > max_speed:
+                speed = max_speed
+
+        temperature = payload.temperature
+        if temperature is not None:
+            if temperature < min_temp:
+                temperature = min_temp
+            elif temperature > max_temp:
+                temperature = max_temp
+
         try:
-            result = engine.generate_wav(voice_state, text, payload.speed, payload.temperature)
+            result = engine.generate_wav(voice_state, text, speed, temperature)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"TTS generation failed: {str(e)}")
 

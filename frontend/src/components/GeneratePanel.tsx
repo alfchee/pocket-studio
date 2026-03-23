@@ -36,12 +36,15 @@ export function GeneratePanel(props: Props) {
 
   async function refreshVoices() {
     setLoadingVoices(true)
+    setError(null)
     try {
       const next = await listVoices()
       setVoices(next)
       if (props.selectedVoiceId === '' && next.length > 0) {
         props.onSelectVoiceId(next[0].voice_id)
       }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load voices')
     } finally {
       setLoadingVoices(false)
     }
@@ -187,4 +190,3 @@ export function GeneratePanel(props: Props) {
     </section>
   )
 }
-

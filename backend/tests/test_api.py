@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from main import create_app
 
 
-def _make_wav_bytes(duration_s: float = 0.5, sample_rate: int = 24000) -> bytes:
+def _make_wav_bytes(duration_s: float = 6.0, sample_rate: int = 24000) -> bytes:
     frames = int(duration_s * sample_rate)
     pcm = bytearray()
     for _ in range(frames):
@@ -64,6 +64,7 @@ def test_clone_and_list_voices(client: TestClient, voices_dir: Path) -> None:
     assert res2.status_code == 200
     voices = res2.json()
     assert any(v["voice_id"] == payload["voice_id"] for v in voices)
+    assert any(v.get("builtin") is True for v in voices)
 
 
 def test_generate_requires_known_voice(client: TestClient) -> None:
