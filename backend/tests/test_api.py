@@ -24,10 +24,17 @@ def _make_wav_bytes(duration_s: float = 0.5, sample_rate: int = 24000) -> bytes:
 
 
 @pytest.fixture()
-def client(tmp_path: Path) -> TestClient:
-    os.environ["VOICES_DIR"] = str(tmp_path / "voices")
+def voices_dir(tmp_path: Path) -> Path:
+    voices = tmp_path / "voices"
+    os.environ["VOICES_DIR"] = str(voices)
     os.environ["MAX_AUDIO_UPLOAD_SIZE_MB"] = "5"
     os.environ["MAX_TEXT_LENGTH"] = "5000"
+    os.environ["TTS_ENGINE"] = "dummy"
+    return voices
+
+
+@pytest.fixture()
+def client(voices_dir: Path) -> TestClient:
     app = create_app()
     return TestClient(app)
 
@@ -38,7 +45,7 @@ def test_health(client: TestClient) -> None:
     assert res.json()["status"] == "ok"
 
 
-def test_clone_and_list_voices(client: TestClient) -> None:
+def test_clone_and_list_voices(client: TestClient, voices_dir: Path) -> None:
     wav_bytes = _make_wav_bytes()
     files = {"file": ("ref.wav", wav_bytes, "audio/wav")}
     data = {"name": "test-voice"}
@@ -47,6 +54,11 @@ def test_clone_and_list_voices(client: TestClient) -> None:
     payload = res.json()
     assert "voice_id" in payload
     assert payload["name"] == "test-voice"
+
+    voice_path = voices_dir / payload["voice_id"]
+    assert (voice_path / "reference.wav").exists()
+    assert (voice_path / "voice.safetensors").exists()
+    assert (voice_path / "meta.json").exists()
 
     res2 = client.get("/api/voices")
     assert res2.status_code == 200
@@ -68,4 +80,3 @@ def test_generate_returns_wav(client: TestClient) -> None:
     assert res2.status_code == 200
     assert res2.headers["content-type"].startswith("audio/wav")
     assert len(res2.content) > 44
-

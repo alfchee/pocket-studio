@@ -4,12 +4,13 @@ import os
 import subprocess
 import tempfile
 import uuid
-import wave
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
+
+from tts_engine import TTSEngine, create_engine
 
 
 def _env_int(name: str, default: int) -> int:
@@ -36,20 +37,6 @@ class GenerateRequest(BaseModel):
     temperature: float | None = None
 
 
-def _write_test_wav(duration_s: float = 1.0, sample_rate: int = 24000) -> bytes:
-    frames = int(duration_s * sample_rate)
-    pcm = bytearray()
-    for _ in range(frames):
-        pcm.extend((0).to_bytes(2, byteorder="little", signed=True))
-    buf = io.BytesIO()
-    with wave.open(buf, "wb") as wf:
-        wf.setnchannels(1)
-        wf.setsampwidth(2)
-        wf.setframerate(sample_rate)
-        wf.writeframes(bytes(pcm))
-    return buf.getvalue()
-
-
 def _normalize_audio_to_wav_24k_mono(input_path: Path, output_path: Path) -> None:
     cmd = [
         "ffmpeg",
@@ -71,10 +58,16 @@ def _normalize_audio_to_wav_24k_mono(input_path: Path, output_path: Path) -> Non
 
 def create_app() -> FastAPI:
     voices_dir = _env_path("VOICES_DIR", "/app/voices")
+    engine_name = (os.getenv("TTS_ENGINE") or "dummy").strip().lower()
     max_audio_mb = _env_int("MAX_AUDIO_UPLOAD_SIZE_MB", 5)
     max_text_len = _env_int("MAX_TEXT_LENGTH", 5000)
 
     voices_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        engine: TTSEngine = create_engine(engine_name)
+    except Exception as e:
+        raise RuntimeError(f"Failed to initialize TTS engine '{engine_name}': {str(e)}")
 
     app = FastAPI(title="Pocket Studio API")
 
@@ -85,6 +78,10 @@ def create_app() -> FastAPI:
     @app.get("/api/voices")
     def list_voices() -> list[dict]:
         results: list[dict] = []
+
+        for v in getattr(engine, "builtin_voices", []):
+            results.append({"voice_id": v, "name": v, "builtin": True})
+
         if not voices_dir.exists():
             return results
         for entry in sorted(voices_dir.iterdir()):
@@ -130,7 +127,10 @@ def create_app() -> FastAPI:
                 raise HTTPException(status_code=400, detail=f"Audio decode failed: {str(e)}")
 
         embedding_path = voice_path / "voice.safetensors"
-        embedding_path.write_bytes(b"PLACEHOLDER")
+        try:
+            engine.clone_to_safetensors(ref_path, embedding_path)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Voice embedding failed: {str(e)}")
 
         meta = {
             "voice_id": voice_id,
@@ -149,11 +149,27 @@ def create_app() -> FastAPI:
         if len(text) > max_text_len:
             raise HTTPException(status_code=413, detail="Text too long")
 
+        voice_state = None
         voice_path = voices_dir / payload.voice_id
-        if not voice_path.exists() or not voice_path.is_dir():
+        if voice_path.exists() and voice_path.is_dir():
+            safetensors_path = voice_path / "voice.safetensors"
+            reference_path = voice_path / "reference.wav"
+            if safetensors_path.exists():
+                voice_state = engine.load_voice_state(safetensors_path)
+            elif reference_path.exists():
+                voice_state = engine.load_voice_state(reference_path)
+        elif payload.voice_id in getattr(engine, "builtin_voices", []):
+            voice_state = engine.load_voice_state(payload.voice_id)
+
+        if voice_state is None:
             raise HTTPException(status_code=404, detail="Unknown voice_id")
 
-        wav_bytes = _write_test_wav(duration_s=1.0, sample_rate=24000)
+        try:
+            result = engine.generate_wav(voice_state, text, payload.speed, payload.temperature)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"TTS generation failed: {str(e)}")
+
+        wav_bytes = result.wav_bytes
         headers = {"Content-Disposition": "attachment; filename=output.wav"}
         return StreamingResponse(io.BytesIO(wav_bytes), media_type="audio/wav", headers=headers)
 
@@ -161,4 +177,3 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
-
