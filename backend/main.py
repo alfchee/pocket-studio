@@ -8,7 +8,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from tts_engine import TTSEngine, create_engine
 
@@ -42,9 +42,22 @@ def _env_path(name: str, default: str) -> Path:
 
 class GenerateRequest(BaseModel):
     text: str = Field(min_length=1)
-    voice_id: str = Field(min_length=1)
+    voice_id: str | None = None
+    speaker_wav_path: str | None = None
+    language: str | None = None
     speed: float | None = None
     temperature: float | None = None
+
+    @model_validator(mode="after")
+    def _validate_voice_source(self) -> "GenerateRequest":
+        voice_id = (self.voice_id or "").strip()
+        speaker_wav_path = (self.speaker_wav_path or "").strip()
+        if voice_id == "" and speaker_wav_path == "":
+            raise ValueError("Either voice_id or speaker_wav_path is required")
+        self.voice_id = voice_id or None
+        self.speaker_wav_path = speaker_wav_path or None
+        self.language = (self.language or "").strip() or None
+        return self
 
 
 def _normalize_audio_to_wav_24k_mono(input_path: Path, output_path: Path) -> None:
@@ -67,7 +80,7 @@ def _normalize_audio_to_wav_24k_mono(input_path: Path, output_path: Path) -> Non
 
 
 def create_app() -> FastAPI:
-    voices_dir = _env_path("VOICES_DIR", "/app/voices")
+    voices_dir = _env_path("VOICES_DIR", "./voices")
     engine_name = (os.getenv("TTS_ENGINE") or "dummy").strip().lower()
     max_audio_mb = _env_int("MAX_AUDIO_UPLOAD_SIZE_MB", 5)
     max_text_len = _env_int("MAX_TEXT_LENGTH", 5000)
@@ -186,20 +199,54 @@ def create_app() -> FastAPI:
         if len(text) > max_text_len:
             raise HTTPException(status_code=413, detail="Text too long")
 
+        language = (payload.language or "es").strip()
+        supported_languages = getattr(engine, "supported_languages", None)
+        if supported_languages:
+            if language not in supported_languages:
+                raise HTTPException(status_code=400, detail="Unsupported language")
+
+        def _resolve_speaker_wav_path(raw_path: str) -> Path:
+            p = Path(raw_path)
+            if not p.is_absolute():
+                p = voices_dir / p
+            try:
+                resolved = p.resolve(strict=False)
+            except Exception:
+                resolved = p
+            try:
+                voices_root = voices_dir.resolve(strict=False)
+                if voices_root not in resolved.parents and resolved != voices_root:
+                    raise HTTPException(status_code=400, detail="speaker_wav_path must be under VOICES_DIR")
+            except Exception:
+                raise HTTPException(status_code=400, detail="Invalid speaker_wav_path")
+            if not resolved.exists() or not resolved.is_file():
+                raise HTTPException(status_code=404, detail="speaker_wav_path not found")
+            return resolved
+
         voice_state = None
-        voice_path = voices_dir / payload.voice_id
-        if voice_path.exists() and voice_path.is_dir():
-            safetensors_path = voice_path / "voice.safetensors"
-            reference_path = voice_path / "reference.wav"
-            if safetensors_path.exists():
-                voice_state = engine.load_voice_state(safetensors_path)
-            elif reference_path.exists():
-                voice_state = engine.load_voice_state(reference_path)
-        elif payload.voice_id in getattr(engine, "builtin_voices", []):
-            voice_state = engine.load_voice_state(payload.voice_id)
+        if payload.speaker_wav_path is not None:
+            speaker_path = _resolve_speaker_wav_path(payload.speaker_wav_path)
+            try:
+                voice_state = engine.load_voice_state(speaker_path)
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Invalid speaker_wav_path: {str(e)}")
+        elif payload.voice_id is not None:
+            voice_path = voices_dir / payload.voice_id
+            if voice_path.exists() and voice_path.is_dir():
+                safetensors_path = voice_path / "voice.safetensors"
+                reference_path = voice_path / "reference.wav"
+                if safetensors_path.exists():
+                    voice_state = engine.load_voice_state(safetensors_path)
+                elif reference_path.exists():
+                    voice_state = engine.load_voice_state(reference_path)
+            elif payload.voice_id in getattr(engine, "builtin_voices", []):
+                voice_state = engine.load_voice_state(payload.voice_id)
 
         if voice_state is None:
-            raise HTTPException(status_code=404, detail="Unknown voice_id")
+            raise HTTPException(status_code=404, detail="Unknown voice")
+
+        if isinstance(voice_state, dict):
+            voice_state = {**voice_state, "language": language}
 
         speed = payload.speed
         if speed is not None:

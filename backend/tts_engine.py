@@ -140,6 +140,90 @@ class PocketTTSEngine(TTSEngine):
         return EngineResult(sample_rate=self.sample_rate, wav_bytes=wav_bytes)
 
 
+class XTTSEngine(TTSEngine):
+    name = "xtts_v2"
+    builtin_voices: list[str] = []
+
+    def __init__(self) -> None:
+        self._tts = None
+        self.sample_rate = 24000
+        self.supported_languages = [
+            "en",
+            "es",
+            "fr",
+            "de",
+            "it",
+            "pt",
+            "pl",
+            "tr",
+            "ru",
+            "nl",
+            "cs",
+            "ar",
+            "zh-cn",
+            "ja",
+            "hu",
+            "ko",
+            "hi",
+        ]
+
+    def _get_tts(self) -> Any:
+        if self._tts is not None:
+            return self._tts
+        from TTS.api import TTS
+
+        tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to("cpu")
+        sr = getattr(getattr(tts, "synthesizer", None), "output_sample_rate", None)
+        self.sample_rate = int(sr) if sr else 24000
+        langs = list(getattr(tts, "languages", []) or [])
+        if langs:
+            self.supported_languages = langs
+        self._tts = tts
+        return self._tts
+
+    def clone_to_safetensors(self, reference_wav: Path, safetensors_path: Path) -> None:
+        safetensors_path.write_bytes(b"XTTS_V2")
+
+    def load_voice_state(self, voice_prompt: str | Path) -> Any:
+        if isinstance(voice_prompt, Path):
+            if voice_prompt.suffix == ".safetensors":
+                reference = voice_prompt.parent / "reference.wav"
+                if not reference.exists():
+                    raise FileNotFoundError(str(reference))
+                return {"speaker_wav": str(reference), "language": "es"}
+            return {"speaker_wav": str(voice_prompt), "language": "es"}
+        return {"speaker": voice_prompt, "language": "es"}
+
+    def generate_wav(self, voice_state: Any, text: str, speed: float | None, temperature: float | None) -> EngineResult:
+        if not isinstance(voice_state, dict):
+            raise TypeError("XTTS engine expects dict voice_state")
+
+        tts = self._get_tts()
+        sig = inspect.signature(tts.tts)
+        kwargs: dict[str, Any] = {}
+        kwargs["text"] = text
+
+        if "speaker_wav" in sig.parameters and voice_state.get("speaker_wav"):
+            kwargs["speaker_wav"] = voice_state["speaker_wav"]
+        elif "speaker" in sig.parameters and voice_state.get("speaker"):
+            kwargs["speaker"] = voice_state["speaker"]
+
+        language = (voice_state.get("language") or "es").strip()
+        if "language" in sig.parameters:
+            kwargs["language"] = language
+        if speed is not None and "speed" in sig.parameters:
+            kwargs["speed"] = speed
+        if temperature is not None and "temperature" in sig.parameters:
+            kwargs["temperature"] = temperature
+
+        try:
+            audio = tts.tts(**kwargs)
+        except TypeError:
+            audio = tts.tts(text)
+        wav_bytes = write_wav_bytes_from_pcm_f32(audio, self.sample_rate)
+        return EngineResult(sample_rate=self.sample_rate, wav_bytes=wav_bytes)
+
+
 def create_engine(engine_name: str) -> TTSEngine:
     if engine_name == "pocket_tts":
         try:
@@ -147,5 +231,12 @@ def create_engine(engine_name: str) -> TTSEngine:
         except ModuleNotFoundError as e:
             raise RuntimeError(
                 "Pocket TTS dependencies are not installed. Rebuild with INSTALL_TTS_DEPS=1 or set TTS_ENGINE=dummy."
+            ) from e
+    if engine_name in {"xtts_v2", "xtts-v2", "xtts"}:
+        try:
+            return XTTSEngine()
+        except ModuleNotFoundError as e:
+            raise RuntimeError(
+                "XTTS dependencies are not installed. Rebuild with INSTALL_TTS_DEPS=1 or set TTS_ENGINE=dummy."
             ) from e
     return DummyEngine()

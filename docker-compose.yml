@@ -24,7 +24,7 @@ services:
       context: ./backend
       dockerfile: ../docker/backend.Dockerfile
       args:
-        INSTALL_TTS_DEPS: ${INSTALL_TTS_DEPS:-0}
+        INSTALL_TTS_DEPS: ${INSTALL_TTS_DEPS:-1}
     container_name: pocket-studio-backend
     ports:
       - "${BACKEND_PORT:-8000}:8000"
@@ -38,10 +38,13 @@ services:
       - VOICES_DIR=${VOICES_DIR:-/app/voices}
       - MODELS_DIR=${MODELS_DIR:-/app/models}
       - OUTPUTS_DIR=${OUTPUTS_DIR:-/app/outputs}
-      - TTS_ENGINE=${TTS_ENGINE:-dummy}
+      - TTS_ENGINE=${TTS_ENGINE:-xtts_v2}
       - HF_HOME=/app/models/hf
       - MAX_AUDIO_UPLOAD_SIZE_MB=${MAX_AUDIO_UPLOAD_SIZE_MB:-5}
       - MAX_TEXT_LENGTH=${MAX_TEXT_LENGTH:-5000}
+      - OMP_NUM_THREADS=${OMP_NUM_THREADS:-4}
+      - MKL_NUM_THREADS=${MKL_NUM_THREADS:-4}
+      - COQUI_TOS_AGREED=${COQUI_TOS_AGREED:-}
     networks:
       - pocket-net
     restart: unless-stopped

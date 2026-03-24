@@ -14,7 +14,8 @@ export function GeneratePanel(props: Props) {
   const [voices, setVoices] = useState<Voice[]>([])
   const [loadingVoices, setLoadingVoices] = useState(false)
 
-  const [text, setText] = useState('Hello! This is a Pocket Studio test.')
+  const [language, setLanguage] = useState('es')
+  const [text, setText] = useState('Hola. Esto es una prueba de Pocket Studio.')
   const [speed, setSpeed] = useState(1.0)
   const [temperature, setTemperature] = useState(0.7)
   const [busy, setBusy] = useState(false)
@@ -33,6 +34,29 @@ export function GeneratePanel(props: Props) {
     })
     return copy
   }, [voices])
+
+  const languageOptions = useMemo(
+    () => [
+      { code: 'es', label: 'Español (es)' },
+      { code: 'en', label: 'English (en)' },
+      { code: 'fr', label: 'Français (fr)' },
+      { code: 'de', label: 'Deutsch (de)' },
+      { code: 'it', label: 'Italiano (it)' },
+      { code: 'pt', label: 'Português (pt)' },
+      { code: 'pl', label: 'Polski (pl)' },
+      { code: 'tr', label: 'Türkçe (tr)' },
+      { code: 'ru', label: 'Русский (ru)' },
+      { code: 'nl', label: 'Nederlands (nl)' },
+      { code: 'cs', label: 'Čeština (cs)' },
+      { code: 'ar', label: 'العربية (ar)' },
+      { code: 'zh-cn', label: '中文 (zh-cn)' },
+      { code: 'ja', label: '日本語 (ja)' },
+      { code: 'hu', label: 'Magyar (hu)' },
+      { code: 'ko', label: '한국어 (ko)' },
+      { code: 'hi', label: 'हिन्दी (hi)' },
+    ],
+    [],
+  )
 
   async function refreshVoices() {
     setLoadingVoices(true)
@@ -79,6 +103,7 @@ export function GeneratePanel(props: Props) {
         voice_id: props.selectedVoiceId,
         speed: safeSpeed,
         temperature: safeTemp,
+        language,
       })
       const url = URL.createObjectURL(blob)
       setAudioBlob(blob)
@@ -112,7 +137,7 @@ export function GeneratePanel(props: Props) {
       </div>
 
       <div className="muted">
-        Paste text, select a voice, tweak speed and temperature, then generate a 24kHz WAV.
+        Paste text, select a voice and language, tweak speed and temperature, then generate a 24kHz WAV.
       </div>
 
       <div className="field">
@@ -135,6 +160,18 @@ export function GeneratePanel(props: Props) {
         <div className="muted">
           Characters: <span className="kbd">{text.length}</span>
         </div>
+      </div>
+
+      <div className="field">
+        <label>Language</label>
+        <select value={language} onChange={(e) => setLanguage(e.target.value)} disabled={busy}>
+          {languageOptions.map((l) => (
+            <option key={l.code} value={l.code}>
+              {l.label}
+            </option>
+          ))}
+        </select>
+        <div className="muted">XTTS is multilingual; selecting the right language improves pronunciation.</div>
       </div>
 
       <div className="field">

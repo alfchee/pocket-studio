@@ -51,6 +51,7 @@ export async function generateAudio(params: {
   voice_id: string
   speed: number
   temperature: number
+  language?: string
   signal?: AbortSignal
 }): Promise<Blob> {
   const res = await fetch('/api/generate', {
@@ -61,6 +62,7 @@ export async function generateAudio(params: {
       voice_id: params.voice_id,
       speed: params.speed,
       temperature: params.temperature,
+      language: params.language,
     }),
     signal: params.signal,
   })
@@ -76,4 +78,3 @@ export async function generateAudio(params: {
   }
   return await res.blob()
 }
-

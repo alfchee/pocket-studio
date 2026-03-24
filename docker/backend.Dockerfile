@@ -7,6 +7,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     ffmpeg \
+    libsndfile1 \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -16,7 +17,13 @@ COPY requirements-tts.txt .
 RUN pip install --user --no-cache-dir -r requirements.txt
 
 ARG INSTALL_TTS_DEPS=0
-RUN if [ "$INSTALL_TTS_DEPS" = "1" ]; then pip install --user --no-cache-dir -r requirements-tts.txt; fi
+RUN if [ "$INSTALL_TTS_DEPS" = "1" ]; then \
+      pip install --user --no-cache-dir \
+        --index-url https://download.pytorch.org/whl/cpu \
+        --extra-index-url https://pypi.org/simple \
+        -r requirements-tts.txt && \
+      python -c "from TTS.api import TTS; print('coqui TTS import ok')"; \
+    fi
 
 # Final stage
 FROM python:3.11-slim
@@ -26,6 +33,7 @@ WORKDIR /app
 # Install runtime system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
+    libsndfile1 \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
