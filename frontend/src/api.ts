@@ -46,15 +46,15 @@ export async function cloneVoice(params: {
   return (await res.json()) as CloneResponse
 }
 
-export async function generateAudio(params: {
+export async function generateAudioStream(params: {
   text: string
   voice_id: string
   speed: number
   temperature: number
   language?: string
   signal?: AbortSignal
-}): Promise<Blob> {
-  const res = await fetch('/api/generate', {
+}): Promise<Response> {
+  const res = await fetch('/api/generate_stream', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -76,5 +76,5 @@ export async function generateAudio(params: {
     }
     throw new Error(`Generate failed (${res.status})${detail}`)
   }
-  return await res.blob()
+  return res
 }

@@ -81,3 +81,14 @@ def test_generate_returns_wav(client: TestClient) -> None:
     assert res2.status_code == 200
     assert res2.headers["content-type"].startswith("audio/wav")
     assert len(res2.content) > 44
+
+
+def test_generate_stream_returns_mp3(client: TestClient) -> None:
+    wav_bytes = _make_wav_bytes()
+    res = client.post("/api/clone", files={"file": ("ref.wav", wav_bytes, "audio/wav")})
+    voice_id = res.json()["voice_id"]
+
+    res2 = client.post("/api/generate_stream", json={"text": "hello. world.", "voice_id": voice_id})
+    assert res2.status_code == 200
+    assert res2.headers["content-type"].startswith("audio/mpeg")
+    assert len(res2.content) > 10

@@ -124,12 +124,19 @@ For each release, the following must be true:
 
 - ✅ Backend starts and passes healthcheck with `TTS_ENGINE=xtts_v2` and `INSTALL_TTS_DEPS=1`.
 - ✅ `/api/generate` returns a valid WAV file (24 kHz, > 44 bytes) for a known `voice_id`.
+- ✅ `/api/generate_stream` streams a playable `audio/mpeg` response for a known `voice_id`.
 - ✅ The generated voice mimics the timbre of the uploaded reference audio.
 - ✅ Generation time does not exceed a 2:1 ratio (e.g., 10 seconds of audio in ≤ 20 seconds of CPU time).
 - ✅ The container starts without detecting missing CUDA/GPU errors.
-- ✅ All 4 pytest tests pass.
+- ✅ All backend pytest tests pass.
 - ✅ Frontend builds without errors and all vitest tests pass.
 - ✅ No error or warning in the browser console on load.
+
+Manual verification for streaming:
+
+- Generate with a long script (e.g. 3k–5k chars) and confirm playback starts before the full script finishes.
+- Confirm the request stays open (no `504`/timeout) while audio continues arriving.
+- Confirm the download button enables at the end and saves a playable file.
 
 ## 10. Future Roadmap
 
