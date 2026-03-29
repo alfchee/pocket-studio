@@ -1,5 +1,6 @@
 import io
 import json
+import logging
 import os
 import queue
 import re
@@ -12,10 +13,17 @@ from pathlib import Path
 from typing import Iterator
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
 
 from tts_engine import TTSEngine, create_engine
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger = logging.getLogger("pocket_studio")
 
 
 def _env_int(name: str, default: int) -> int:
@@ -279,6 +287,7 @@ def create_app() -> FastAPI:
         try:
             engine.clone_to_safetensors(ref_path, embedding_path)
         except Exception as e:
+            logger.exception("Voice embedding failed")
             raise HTTPException(status_code=500, detail=f"Voice embedding failed: {str(e)}")
 
         meta = {
@@ -364,6 +373,7 @@ def create_app() -> FastAPI:
         try:
             result = engine.generate_wav(voice_state, text, speed, temperature)
         except Exception as e:
+            logger.exception("TTS generation failed")
             raise HTTPException(status_code=500, detail=f"TTS generation failed: {str(e)}")
 
         wav_bytes = result.wav_bytes
@@ -452,6 +462,7 @@ def create_app() -> FastAPI:
         except HTTPException:
             raise
         except Exception as e:
+            logger.exception("TTS generation failed (stream, first chunk)")
             raise HTTPException(status_code=500, detail=f"TTS generation failed: {str(e)}")
 
         q: queue.Queue[bytes | None] = queue.Queue(maxsize=8)
@@ -468,6 +479,8 @@ def create_app() -> FastAPI:
                         sample_rate = sr2
                     mp3 = _encode_mp3_from_pcm_s16le(pcm2, sample_rate)
                     q.put(mp3)
+            except Exception:
+                logger.exception("TTS generation failed (stream worker)")
             finally:
                 q.put(None)
 
@@ -507,6 +520,24 @@ def create_app() -> FastAPI:
             "X-Accel-Buffering": "no",
         }
         return StreamingResponse(_iter(), media_type="audio/mpeg", headers=headers)
+
+    # --- Frontend static file serving (SPA) ---
+    _static_dir = _env_path("STATIC_DIR", "./static")
+    if _static_dir.exists() and _static_dir.is_dir():
+        _assets_dir = _static_dir / "assets"
+        if _assets_dir.exists():
+            app.mount("/assets", StaticFiles(directory=str(_assets_dir)), name="assets")
+
+        @app.get("/", include_in_schema=False)
+        async def serve_index() -> FileResponse:
+            return FileResponse(str(_static_dir / "index.html"))
+
+        @app.get("/{full_path:path}", include_in_schema=False)
+        async def serve_spa(full_path: str) -> FileResponse:
+            candidate = _static_dir / full_path
+            if candidate.is_file():
+                return FileResponse(str(candidate))
+            return FileResponse(str(_static_dir / "index.html"))
 
     return app
 

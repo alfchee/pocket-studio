@@ -1,0 +1,7 @@
+qwen-tts
+transformers>=4.57
+accelerate
+torch>=2.2,<2.9
+torchaudio>=2.2,<2.9
+soundfile
+librosa

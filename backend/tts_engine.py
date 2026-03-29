@@ -1,5 +1,6 @@
 import inspect
 import io
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -224,6 +225,105 @@ class XTTSEngine(TTSEngine):
         return EngineResult(sample_rate=self.sample_rate, wav_bytes=wav_bytes)
 
 
+class Qwen3TTSEngine(TTSEngine):
+    name = "qwen3_tts"
+    sample_rate = 24000
+    supported_languages = ["en", "zh", "ja", "ko", "de", "fr", "ru", "pt", "es", "it"]
+    builtin_voices: list[str] = []
+
+    _LANG_MAP = {
+        "en": "English",
+        "zh": "Chinese",
+        "ja": "Japanese",
+        "ko": "Korean",
+        "de": "German",
+        "fr": "French",
+        "ru": "Russian",
+        "pt": "Portuguese",
+        "es": "Spanish",
+        "it": "Italian",
+    }
+
+    def __init__(self) -> None:
+        import qwen_tts  # noqa: F401 – trigger ImportError early if not installed
+        self._model = None
+
+    def _get_model(self) -> Any:
+        if self._model is not None:
+            return self._model
+        import torch
+        from qwen_tts import Qwen3TTSModel
+
+        model_id = os.getenv("QWEN3_TTS_MODEL", "Qwen/Qwen3-TTS-12Hz-0.6B-Base")
+        hf_token = os.getenv("HF_TOKEN")
+        hf_home = os.getenv("HF_HOME", "/app/models")
+
+        # Build kwargs - ensure we can download missing files
+        kwargs = {
+            "device_map": "cpu",
+            "dtype": torch.float32,
+            "trust_remote_code": True,
+            "local_files_only": False,
+            "force_download": False,
+        }
+        if hf_home:
+            kwargs["cache_dir"] = hf_home
+        if hf_token:
+            kwargs["token"] = hf_token
+
+        try:
+            self._model = Qwen3TTSModel.from_pretrained(model_id, **kwargs)
+            sr = getattr(self._model, "sample_rate", None)
+            if sr:
+                self.sample_rate = int(sr)
+            return self._model
+        except OSError as e:
+            if "speech_tokenizer" in str(e) and "preprocessor_config.json" in str(e):
+                # Model repo might be incomplete. Try with force_download=True to re-fetch everything
+                import logging
+                logger = logging.getLogger("pocket_studio")
+                logger.warning(f"Model loading failed, retrying with force_download: {e}")
+                kwargs["force_download"] = True
+                self._model = Qwen3TTSModel.from_pretrained(model_id, **kwargs)
+                sr = getattr(self._model, "sample_rate", None)
+                if sr:
+                    self.sample_rate = int(sr)
+                return self._model
+            raise
+
+    def clone_to_safetensors(self, reference_wav: Path, safetensors_path: Path) -> None:
+        # Qwen3-TTS conditions on reference audio at generation time (like XTTSv2)
+        safetensors_path.write_bytes(b"QWEN3_TTS")
+
+    def load_voice_state(self, voice_prompt: str | Path) -> Any:
+        if isinstance(voice_prompt, Path) and voice_prompt.suffix == ".safetensors":
+            ref_wav = voice_prompt.parent / "reference.wav"
+            if not ref_wav.exists():
+                raise FileNotFoundError(str(ref_wav))
+            return {"speaker_wav": str(ref_wav), "language": "en"}
+        return {"speaker_wav": str(voice_prompt), "language": "en"}
+
+    def generate_wav(self, voice_state: Any, text: str, speed: float | None, temperature: float | None) -> EngineResult:
+        if not isinstance(voice_state, dict):
+            raise TypeError("Qwen3-TTS engine expects dict voice_state")
+
+        model = self._get_model()
+        speaker_wav = voice_state.get("speaker_wav")
+        lang_code = (voice_state.get("language") or "en").lower()
+        if lang_code.startswith("zh"):
+            lang_code = "zh"
+        language = self._LANG_MAP.get(lang_code, "English")
+
+        wavs, sr = model.generate_voice_clone(
+            text=text,
+            language=language,
+            ref_audio=speaker_wav,
+            ref_text=None,
+        )
+        wav_bytes = write_wav_bytes_from_pcm_f32(wavs[0], int(sr))
+        return EngineResult(sample_rate=int(sr), wav_bytes=wav_bytes)
+
+
 def create_engine(engine_name: str) -> TTSEngine:
     if engine_name == "pocket_tts":
         try:
@@ -238,5 +338,12 @@ def create_engine(engine_name: str) -> TTSEngine:
         except ModuleNotFoundError as e:
             raise RuntimeError(
                 "XTTS dependencies are not installed. Rebuild with INSTALL_TTS_DEPS=1 or set TTS_ENGINE=dummy."
+            ) from e
+    if engine_name in {"qwen3_tts", "qwen3-tts", "qwen3"}:
+        try:
+            return Qwen3TTSEngine()
+        except ModuleNotFoundError as e:
+            raise RuntimeError(
+                "Qwen3-TTS dependencies are not installed. Install requirements-qwen3-tts.txt or set TTS_ENGINE=dummy."
             ) from e
     return DummyEngine()
