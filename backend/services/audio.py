@@ -7,9 +7,12 @@ import re
 import subprocess
 import threading
 from pathlib import Path
-from typing import Iterator
+from typing import TYPE_CHECKING, Iterator
 
 import wave
+
+if TYPE_CHECKING:
+    from backend.tts_engine import TTSEngine
 
 logger = logging.getLogger("pocket_studio")
 
@@ -194,7 +197,7 @@ class AudioService:
 
             if len(s) > self.stream_segment_max_chars:
                 for i in range(0, len(s), self.stream_segment_max_chars):
-                    part = s[i : i + self.stream_segment_max_chars].strip()
+                    part = s[i:i + self.stream_segment_max_chars].strip()
                     if part:
                         if cur:
                             chunks.append(cur)

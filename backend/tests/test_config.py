@@ -4,8 +4,6 @@ import os
 import sys
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[2].parent))
 
 for key in ['PORT', 'VOICES_DIR', 'OUTPUTS_DIR', 'MODELS_DIR', 'STATIC_DIR', 'HF_HOME', 'TTS_CACHE_DIR', 'TRANSFORMERS_CACHE']:

@@ -5,12 +5,15 @@ import logging
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import wave
 
 from backend.schemas.responses import VoiceInfo
 from backend.services.audio import AudioService
+
+if TYPE_CHECKING:
+    from backend.tts_engine import TTSEngine
 
 logger = logging.getLogger("pocket_studio")
 

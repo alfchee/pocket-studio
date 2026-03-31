@@ -2,18 +2,21 @@
 
 import io
 import logging
-import queue
 import threading
+from pathlib import Path
 from queue import Queue
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 
 from backend.schemas.requests import GenerateRequest
 from backend.schemas.responses import CloneResponse, HealthInfo, VoiceInfo
 from backend.services.audio import AudioService
 from backend.services.voice import VoiceService
+
+if TYPE_CHECKING:
+    from backend.tts_engine import TTSEngine
 
 logger = logging.getLogger("pocket_studio")
 
@@ -29,7 +32,7 @@ def create_tts_routes(
     max_speed: float,
     min_temperature: float,
     max_temperature: float,
-    voices_dir: "Path",
+    voices_dir: Path,
 ) -> APIRouter:
     """Create TTS API routes with injected dependencies.
 
