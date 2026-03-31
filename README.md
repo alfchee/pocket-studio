@@ -82,10 +82,21 @@ Tweak **Speed** and **Temperature** (style/consistency trade-off), hit **Generat
 
 | Layer | Technology |
 |---|---|
-| **UI** | React + TypeScript, served by Nginx |
+| **UI** | React + TypeScript, served as static files |
 | **API** | FastAPI (Python 3.11+) |
-| **TTS Engine** | Plugable: `xtts_v2` · `pocket_tts` · `dummy` |
+| **TTS Engine** | Pluggable: `xtts_v2` · `pocket_tts` · `dummy` |
 | **Runtime** | Docker + Docker Compose |
+
+### Backend Package Structure
+
+```
+backend/
+├── config/           # Settings management (Pydantic)
+├── schemas/         # Request/response validation
+├── services/        # Business logic (audio, voice)
+├── api/            # FastAPI routes
+└── utils/          # Utilities (logging)
+```
 
 ### API Endpoints
 
@@ -94,7 +105,8 @@ Tweak **Speed** and **Temperature** (style/consistency trade-off), hit **Generat
 | `GET` | `/api/health` | Service health & engine info |
 | `GET` | `/api/voices` | List available (cloned + built-in) voices |
 | `POST` | `/api/clone` | Upload reference audio → get a `voice_id` |
-| `POST` | `/api/generate` | Synthesize text → streaming WAV |
+| `POST` | `/api/generate` | Synthesize text → WAV audio |
+| `POST` | `/api/generate_stream` | Synthesize text → streaming MP3 |
 
 ### Switching Engines
 
@@ -114,26 +126,41 @@ All settings are environment variables (see `.env.example`):
 
 | Variable | Default | Description |
 |---|---|---|
-| `TTS_ENGINE` | `xtts_v2` | TTS engine to use |
-| `INSTALL_TTS_DEPS` | `1` | Install heavy TTS deps (PyTorch, Coqui TTS) |
-| `COQUI_TOS_AGREED` | `0` | Set to `1` to accept CPML and use XTTS-v2 |
+| `TTS_ENGINE` | `dummy` | TTS engine to use (`xtts_v2`, `pocket_tts`, `dummy`) |
+| `VOICES_DIR` | `./voices` | Directory for voice embeddings |
+| `OUTPUTS_DIR` | `./outputs` | Directory for generated audio |
 | `MAX_AUDIO_UPLOAD_SIZE_MB` | `5` | Max upload size for reference audio |
 | `MAX_TEXT_LENGTH` | `5000` | Max characters per generation request |
-| `MIN_REF_SECONDS` / `MAX_REF_SECONDS` | `5` / `10` | Valid range for reference audio duration |
+| `MIN_REF_SECONDS` / `MAX_REF_SECONDS` | `5.0` / `10.0` | Valid range for reference audio duration |
 | `MIN_SPEED` / `MAX_SPEED` | `0.5` / `2.0` | Speed multiplier range |
 | `MIN_TEMPERATURE` / `MAX_TEMPERATURE` | `0.0` / `1.5` | Temperature/style range |
+| `COQUI_TOS_AGREED` | `0` | Required for XTTS-v2 (`1` = accepted CPML terms) |
 
 ---
 
 ## 🧪 Tests
 
 ```bash
-# Backend
-docker compose run --rm backend pytest -q
+# Backend (58 tests, 71% coverage)
+cd backend
+python -m pytest tests/ -v --cov=backend
 
 # Frontend
 cd frontend && npm test
 ```
+
+---
+
+## 📚 Documentation
+
+Comprehensive documentation is available in the `docs/` directory:
+
+| Document | Description |
+|----------|-------------|
+| [docs/API.md](docs/API.md) | Complete API reference |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture |
+| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Development guide |
+| [docs/README.md](docs/README.md) | Documentation index |
 
 ---
 
