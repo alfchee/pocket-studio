@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from main import create_app
+from backend.main import create_app
 
 
 def _make_wav_bytes(duration_s: float = 6.0, sample_rate: int = 24000) -> bytes:

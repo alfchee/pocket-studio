@@ -1,52 +1,24 @@
 services:
-  frontend:
+  pocket-tts:
+    profiles: [pocket-tts]
     build:
-      context: ./frontend
-      dockerfile: ../docker/frontend.Dockerfile
-    container_name: pocket-studio-frontend
+      context: .
+      dockerfile: docker/pocket-tts.Dockerfile
+    container_name: pocket-studio
     ports:
-      - "${FRONTEND_PORT:-3000}:80"
-    networks:
-      - pocket-net
-    depends_on:
-      backend:
-        condition: service_healthy
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-
-  backend:
-    build:
-      context: ./backend
-      dockerfile: ../docker/backend.Dockerfile
-      args:
-        INSTALL_TTS_DEPS: ${INSTALL_TTS_DEPS:-1}
-    container_name: pocket-studio-backend
-    ports:
-      - "${BACKEND_PORT:-8000}:8000"
+      - "${PORT:-3000}:8000"
     volumes:
       - ./voices:/app/voices
       - ./models:/app/models
       - ./outputs:/app/outputs
     environment:
-      - BACKEND_PORT=${BACKEND_PORT:-8000}
-      - API_HOST=${API_HOST:-0.0.0.0}
       - VOICES_DIR=${VOICES_DIR:-/app/voices}
       - MODELS_DIR=${MODELS_DIR:-/app/models}
       - OUTPUTS_DIR=${OUTPUTS_DIR:-/app/outputs}
-      - TTS_ENGINE=${TTS_ENGINE:-xtts_v2}
-      - HF_HOME=/app/models/hf
       - MAX_AUDIO_UPLOAD_SIZE_MB=${MAX_AUDIO_UPLOAD_SIZE_MB:-5}
       - MAX_TEXT_LENGTH=${MAX_TEXT_LENGTH:-5000}
       - OMP_NUM_THREADS=${OMP_NUM_THREADS:-4}
       - MKL_NUM_THREADS=${MKL_NUM_THREADS:-4}
-      - COQUI_TOS_AGREED=${COQUI_TOS_AGREED:-}
-    networks:
-      - pocket-net
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
@@ -55,6 +27,62 @@ services:
       retries: 3
       start_period: 20s
 
-networks:
-  pocket-net:
-    driver: bridge
+  xtts-v2:
+    profiles: [xtts-v2]
+    build:
+      context: .
+      dockerfile: docker/xtts-v2.Dockerfile
+    container_name: pocket-studio-xtts
+    ports:
+      - "${PORT:-3000}:8000"
+    volumes:
+      - ./voices:/app/voices
+      - ./outputs:/app/outputs
+    environment:
+      - VOICES_DIR=${VOICES_DIR:-/app/voices}
+      - MODELS_DIR=${MODELS_DIR:-/app/models}
+      - OUTPUTS_DIR=${OUTPUTS_DIR:-/app/outputs}
+      - HF_HOME=/app/models/hf
+      - MAX_AUDIO_UPLOAD_SIZE_MB=${MAX_AUDIO_UPLOAD_SIZE_MB:-5}
+      - MAX_TEXT_LENGTH=${MAX_TEXT_LENGTH:-5000}
+      - OMP_NUM_THREADS=${OMP_NUM_THREADS:-4}
+      - MKL_NUM_THREADS=${MKL_NUM_THREADS:-4}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  qwen3-tts:
+    profiles: [qwen3-tts]
+    build:
+      context: .
+      dockerfile: docker/qwen3-tts.Dockerfile
+      args:
+        HF_TOKEN: ${HF_TOKEN:-}
+    container_name: pocket-studio
+    ports:
+      - "${PORT:-3000}:8000"
+    volumes:
+      - ./voices:/app/voices
+      - ./models:/app/models
+      - ./outputs:/app/outputs
+    environment:
+      - VOICES_DIR=${VOICES_DIR:-/app/voices}
+      - MODELS_DIR=${MODELS_DIR:-/app/models}
+      - OUTPUTS_DIR=${OUTPUTS_DIR:-/app/outputs}
+      - HF_HOME=/app/models
+      - QWEN3_TTS_MODEL=${QWEN3_TTS_MODEL:-Qwen/Qwen3-TTS-12Hz-0.6B-Base}
+      - MAX_AUDIO_UPLOAD_SIZE_MB=${MAX_AUDIO_UPLOAD_SIZE_MB:-5}
+      - MAX_TEXT_LENGTH=${MAX_TEXT_LENGTH:-5000}
+      - OMP_NUM_THREADS=${OMP_NUM_THREADS:-4}
+      - MKL_NUM_THREADS=${MKL_NUM_THREADS:-4}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
