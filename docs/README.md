@@ -10,6 +10,7 @@ Welcome to the Pocket Studio documentation! This directory contains comprehensiv
 | [API.md](API.md) | Complete API reference with examples |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System architecture and design decisions |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Development guide and testing documentation |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Branching strategy and CI/CD pipeline |
 
 ## Quick Links
 
