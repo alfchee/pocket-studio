@@ -4,10 +4,10 @@ import os
 import sys
 from pathlib import Path
 
-# Ensure backend package is importable
-backend_path = str(Path(__file__).resolve().parents[1])
-if backend_path not in sys.path:
-    sys.path.insert(0, backend_path)
+# Ensure project root is importable (parent of backend/)
+project_root = str(Path(__file__).resolve().parents[1])
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 # Clear any Docker-related environment variables that might interfere with tests
 docker_vars = ['PORT', 'VOICES_DIR', 'OUTPUTS_DIR', 'MODELS_DIR', 'STATIC_DIR', 'HF_HOME', 'TTS_CACHE_DIR', 'TRANSFORMERS_CACHE']

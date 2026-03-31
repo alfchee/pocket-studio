@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2].parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from backend.schemas.requests import GenerateRequest
 from backend.schemas.responses import CloneResponse, ErrorResponse, HealthInfo, VoiceInfo
