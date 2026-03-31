@@ -37,7 +37,6 @@ services:
       - "${PORT:-3000}:8000"
     volumes:
       - ./voices:/app/voices
-      - ./models:/app/models
       - ./outputs:/app/outputs
     environment:
       - VOICES_DIR=${VOICES_DIR:-/app/voices}
