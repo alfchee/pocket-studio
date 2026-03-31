@@ -24,6 +24,11 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg libsndfile1
+
       - name: Install Python dependencies
         run: |
           cd backend
