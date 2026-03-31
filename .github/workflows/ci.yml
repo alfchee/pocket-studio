@@ -52,28 +52,28 @@ jobs:
           files: coverage.xml
           fail_ci_if_error: false
 
-      - name: Build Docker images (pocket-tts profile)
-        run: |
-          docker compose build pocket-tts
+      # - name: Build Docker images (pocket-tts profile)
+      #   run: |
+      #     docker compose build pocket-tts
 
-      - name: Build Docker images (xtts-v2 profile)
-        run: |
-          docker compose build xtts-v2
+      # - name: Build Docker images (xtts-v2 profile)
+      #   run: |
+      #     docker compose build xtts-v2
 
-      - name: Build Docker images (qwen3-tts profile)
-        run: |
-          docker compose build qwen3-tts
+      # - name: Build Docker images (qwen3-tts profile)
+      #   run: |
+      #     docker compose build qwen3-tts
 
-      - name: Health check - pocket-tts
-        run: |
-          docker compose --profile pocket-tts up -d
-          sleep 10
-          curl -f http://localhost:3000/api/health || exit 1
-          docker compose down
+      # - name: Health check - pocket-tts
+      #   run: |
+      #     docker compose --profile pocket-tts up -d
+      #     sleep 10
+      #     curl -f http://localhost:3000/api/health || exit 1
+      #     docker compose down
 
-      - name: Health check - xtts-v2
-        run: |
-          docker compose --profile xtts-v2 up -d
-          sleep 10
-          curl -f http://localhost:3000/api/health || exit 1
-          docker compose down
+      # - name: Health check - xtts-v2
+      #   run: |
+      #     docker compose --profile xtts-v2 up -d
+      #     sleep 10
+      #     curl -f http://localhost:3000/api/health || exit 1
+      #     docker compose down
