@@ -44,6 +44,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=python-builder /root/.local /root/.local
 COPY --from=python-builder /app/models /app/models
 ENV PATH=/root/.local/bin:$PATH
+ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 ENV PORT=8000
 ENV TTS_ENGINE=xtts_v2
@@ -52,9 +53,9 @@ ENV COQUI_TOS_AGREED=1
 ENV TTS_CACHE_DIR=/app/models
 ENV HF_HOME=/app/models/hf
 ENV TRANSFORMERS_CACHE=/app/models/hf
-COPY backend/ .
+COPY backend /app/backend
 COPY --from=frontend-builder /frontend/dist /app/static
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
     CMD curl -f http://localhost:8000/api/health || exit 1
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]

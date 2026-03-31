@@ -37,7 +37,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=python-builder /root/.local /root/.local
 ENV PATH=/root/.local/bin:$PATH
-COPY backend/ .
+ENV PYTHONPATH=/app
+COPY backend /app/backend
 COPY --from=frontend-builder /frontend/dist /app/static
 ENV PYTHONUNBUFFERED=1
 ENV PORT=8000
@@ -48,4 +49,4 @@ ENV QWEN3_TTS_MODEL=Qwen/Qwen3-TTS-12Hz-0.6B-Base
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
     CMD curl -f http://localhost:8000/api/health || exit 1
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
