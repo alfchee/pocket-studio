@@ -11,6 +11,7 @@ voices/
 
 # Python
 __pycache__/
+.venv/
 *.py[cod]
 *.so
 .Python

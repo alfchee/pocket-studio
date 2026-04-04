@@ -57,6 +57,7 @@ class VoiceService:
         filename: str,
         name: str | None,
         engine: "TTSEngine",
+        ref_text: str | None = None,
     ) -> tuple[str, str]:
         """Clone a voice from audio data.
 
@@ -126,6 +127,11 @@ class VoiceService:
         (voice_path / "meta.json").write_text(
             json.dumps(meta, ensure_ascii=False), encoding="utf-8"
         )
+
+        if ref_text and ref_text.strip():
+            (voice_path / "reference.txt").write_text(
+                ref_text.strip(), encoding="utf-8"
+            )
 
         return voice_id, meta["name"]
 

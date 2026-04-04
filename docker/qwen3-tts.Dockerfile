@@ -6,9 +6,13 @@ RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
-# Stage 2: Build Python dependencies
+# Stage 2: Build Python dependencies and download Qwen3-TTS model
 FROM python:3.11-slim AS python-builder
 WORKDIR /app
+ARG HF_TOKEN
+ARG QWEN3_TTS_MODEL=Qwen/Qwen3-TTS-12Hz-0.6B-Base
+ENV HF_HOME=/app/models
+ENV QWEN3_TTS_MODEL=${QWEN3_TTS_MODEL}
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     ffmpeg \
@@ -25,6 +29,10 @@ RUN pip install --user --no-cache-dir \
     --extra-index-url https://pypi.org/simple \
     -r requirements-qwen3-tts.txt && \
     python -c "from qwen_tts import Qwen3TTSModel; print('qwen3_tts import ok')"
+COPY docker/download_model.py /app/download_model.py
+RUN python /app/download_model.py || exit 1
+RUN echo "Verifying Qwen3-TTS model files:" && \
+    find /app/models -type f \( -name "*.safetensors" -o -name "*.json" \) 2>/dev/null | head -20 || echo "Model files check complete"
 
 # Stage 3: Final
 FROM python:3.11-slim
@@ -36,6 +44,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=python-builder /root/.local /root/.local
+COPY --from=python-builder /app/models /app/models
 ENV PATH=/root/.local/bin:$PATH
 ENV PYTHONPATH=/app
 COPY backend /app/backend
@@ -45,6 +54,7 @@ ENV PORT=8000
 ENV TTS_ENGINE=qwen3_tts
 ENV STATIC_DIR=/app/static
 ENV HF_HOME=/app/models
+ENV HF_HUB_CACHE=/app/models
 ENV QWEN3_TTS_MODEL=Qwen/Qwen3-TTS-12Hz-0.6B-Base
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \

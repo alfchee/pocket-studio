@@ -10,6 +10,14 @@ import wave
 
 logger = logging.getLogger("pocket_studio")
 
+# huggingface_hub reads HF_HUB_CACHE once as a module-level constant at import time.
+# When only HF_HOME is set it defaults to HF_HOME/hub, which differs from the
+# cache_dir passed to from_pretrained. Set HF_HUB_CACHE here — before any
+# qwen_tts/transformers/huggingface_hub import — so the constant is initialised correctly.
+_hf_home = os.getenv("HF_HOME")
+if _hf_home and "HF_HUB_CACHE" not in os.environ:
+    os.environ["HF_HUB_CACHE"] = _hf_home
+
 # Empirically profiled characters-per-second rates for XTTS-v2
 _XTTS_CPS: dict[str, float] = {
     "en": 14.0, "es": 16.0, "fr": 15.0, "de": 13.0,
@@ -446,8 +454,17 @@ class Qwen3TTSEngine(TTSEngine):
             ref_wav = voice_prompt.parent / "reference.wav"
             if not ref_wav.exists():
                 raise FileNotFoundError(str(ref_wav))
-            return {"speaker_wav": str(ref_wav), "language": "en"}
-        return {"speaker_wav": str(voice_prompt), "language": "en"}
+            state: dict = {"speaker_wav": str(ref_wav), "language": "en"}
+            ref_txt = voice_prompt.parent / "reference.txt"
+            if ref_txt.exists():
+                state["ref_text"] = ref_txt.read_text(encoding="utf-8").strip() or None
+            return state
+        state = {"speaker_wav": str(voice_prompt), "language": "en"}
+        if isinstance(voice_prompt, Path):
+            ref_txt = voice_prompt.parent / "reference.txt"
+            if ref_txt.exists():
+                state["ref_text"] = ref_txt.read_text(encoding="utf-8").strip() or None
+        return state
 
     def generate_wav(self, voice_state: Any, text: str, speed: float | None, temperature: float | None) -> EngineResult:
         if not isinstance(voice_state, dict):
@@ -460,11 +477,18 @@ class Qwen3TTSEngine(TTSEngine):
             lang_code = "zh"
         language = self._LANG_MAP.get(lang_code, "English")
 
+        ref_text = voice_state.get("ref_text") or None
+        extra_kwargs: dict = {}
+        if ref_text is None:
+            # No transcription available — use x-vector only mode so the model
+            # doesn't require ref_text (lower quality but functional).
+            extra_kwargs["x_vector_only_mode"] = True
         wavs, sr = model.generate_voice_clone(
             text=text,
             language=language,
             ref_audio=speaker_wav,
-            ref_text=None,
+            ref_text=ref_text,
+            **extra_kwargs,
         )
         wav_bytes = write_wav_bytes_from_pcm_f32(wavs[0], int(sr))
         return EngineResult(sample_rate=int(sr), wav_bytes=wav_bytes)
