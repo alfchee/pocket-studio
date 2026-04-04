@@ -49,13 +49,14 @@ ENV PATH=/root/.local/bin:$PATH
 ENV PYTHONPATH=/app
 COPY backend /app/backend
 COPY --from=frontend-builder /frontend/dist /app/static
+ARG QWEN3_TTS_MODEL=Qwen/Qwen3-TTS-12Hz-0.6B-Base
 ENV PYTHONUNBUFFERED=1
 ENV PORT=8000
 ENV TTS_ENGINE=qwen3_tts
 ENV STATIC_DIR=/app/static
 ENV HF_HOME=/app/models
 ENV HF_HUB_CACHE=/app/models
-ENV QWEN3_TTS_MODEL=Qwen/Qwen3-TTS-12Hz-0.6B-Base
+ENV QWEN3_TTS_MODEL=${QWEN3_TTS_MODEL}
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
     CMD curl -f http://localhost:8000/api/health || exit 1
