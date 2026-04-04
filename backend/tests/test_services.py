@@ -251,6 +251,46 @@ class TestVoiceService:
         with pytest.raises(VoiceManagementError, match="speaker_wav_path not found"):
             voice_service.resolve_speaker_wav_path("nonexistent.wav", voice_service.voices_dir)
 
+    def test_clone_voice_saves_ref_text(self, voice_service, valid_ref_audio):
+        """Test that reference.txt is written with stripped text when ref_text is provided."""
+        engine = MockTTSEngine()
+        voice_id, _ = voice_service.clone_voice(
+            audio_bytes=valid_ref_audio,
+            filename="ref.wav",
+            name="test-voice",
+            engine=engine,
+            ref_text="  The quick brown fox.  ",
+        )
+        ref_txt = voice_service.voices_dir / voice_id / "reference.txt"
+        assert ref_txt.exists()
+        assert ref_txt.read_text(encoding="utf-8") == "The quick brown fox."
+
+    def test_clone_voice_no_ref_text_file_absent(self, voice_service, valid_ref_audio):
+        """Test that reference.txt is NOT written when ref_text is None."""
+        engine = MockTTSEngine()
+        voice_id, _ = voice_service.clone_voice(
+            audio_bytes=valid_ref_audio,
+            filename="ref.wav",
+            name="test-voice",
+            engine=engine,
+            ref_text=None,
+        )
+        ref_txt = voice_service.voices_dir / voice_id / "reference.txt"
+        assert not ref_txt.exists()
+
+    def test_clone_voice_blank_ref_text_file_absent(self, voice_service, valid_ref_audio):
+        """Test that reference.txt is NOT written when ref_text is blank or whitespace-only."""
+        engine = MockTTSEngine()
+        voice_id, _ = voice_service.clone_voice(
+            audio_bytes=valid_ref_audio,
+            filename="ref.wav",
+            name="test-voice",
+            engine=engine,
+            ref_text="   ",
+        )
+        ref_txt = voice_service.voices_dir / voice_id / "reference.txt"
+        assert not ref_txt.exists()
+
 
 class MockTTSEngine:
     """Mock TTS engine for testing."""

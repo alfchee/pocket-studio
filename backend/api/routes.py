@@ -71,6 +71,7 @@ def create_tts_routes(
     async def clone_voice(
         file: Annotated[UploadFile, File(description="Reference audio file")],
         name: Annotated[str | None, Form()] = None,
+        ref_text: Annotated[str | None, Form(description="Transcription of the reference audio (enables higher-quality ICL mode)")] = None,
     ) -> CloneResponse:
         """Clone a voice from reference audio."""
         if file.filename is None or file.filename == "":
@@ -85,6 +86,7 @@ def create_tts_routes(
                 audio_bytes=raw,
                 filename=file.filename,
                 name=name,
+                ref_text=ref_text,
                 engine=engine,
             )
         except Exception as e:

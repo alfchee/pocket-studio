@@ -21,47 +21,86 @@ No cloud accounts. No API keys. No subscriptions.
 
 ---
 
-## 🌍 Multilingual Power — Powered by XTTS-v2
+## 🤖 TTS Engines
 
-Pocket Studio ships with [Coqui's XTTS-v2](https://huggingface.co/coqui/XTTS-v2), a state-of-the-art multilingual TTS model supporting:
+Pocket Studio supports three TTS engines selectable via Docker Compose profiles:
+
+| Engine | Profile | Docker Hub Image | Description |
+|---|---|---|---|
+| **XTTS-v2** | `xtts-v2` | `alfchee/pocket-studio-xtts-v2` | Coqui XTTS-v2 — 17 languages, high-quality voice cloning |
+| **Pocket TTS** | `pocket-tts` | `alfchee/pocket-studio-pocket-tts` | Lightweight English-only TTS |
+| **Qwen3-TTS** | `qwen3-tts` | `alfchee/pocket-studio-qwen3-tts` | Qwen3-TTS — multilingual, CPU-friendly, voice cloning with ICL mode |
+
+---
+
+## 🌍 Multilingual Support
+
+### XTTS-v2
+Powered by [Coqui's XTTS-v2](https://huggingface.co/coqui/XTTS-v2), supporting 17 languages:
 
 `English` `Spanish` `French` `German` `Italian` `Portuguese` `Polish` `Turkish` `Russian`
 `Dutch` `Czech` `Arabic` `Chinese` `Japanese` `Hungarian` `Korean` `Hindi`
 
-Select the target language in the UI before generating — XTTS uses it to guide pronunciation, prosody, and text processing, producing noticeably better results than leaving it unspecified.
+### Qwen3-TTS
+Powered by [Qwen/Qwen3-TTS](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-Base), a compact multilingual model that runs on CPU. Supports two synthesis modes:
+
+- **ICL mode** (higher fidelity): provide `ref_text` — the exact transcription of your reference audio clip.
+- **X-vector mode** (fallback): no transcription needed; uses speaker embeddings directly.
 
 ---
 
-## 🚀 Get Started (Zero-Config)
+## 🚀 Quick Start — Pre-built Docker Hub Images
+
+The fastest way to get running — no build step required:
 
 ```bash
-git clone https://github.com/YOUR_HANDLE/pocket-studio.git
+git clone https://github.com/alfchee/pocket-studio.git
 cd pocket-studio
 
-# Start immediately (dummy engine — fast build, no heavy deps)
-docker compose up --build
+# XTTS-v2 (multilingual, high quality)
+docker compose --profile xtts-v2 pull
+docker compose --profile xtts-v2 up
+
+# Pocket TTS (lightweight, English-only)
+docker compose --profile pocket-tts pull
+docker compose --profile pocket-tts up
+
+# Qwen3-TTS (multilingual, CPU-friendly)
+docker compose --profile qwen3-tts pull
+docker compose --profile qwen3-tts up
 ```
 
-Open **[http://localhost:3000](http://localhost:3000)** and you're ready.
+Open **[http://localhost:8000](http://localhost:8000)** (or the port set by `PORT`) and you're ready.
 
 ---
 
-## 🎯 One-Click Real TTS (XTTS-v2)
+## 🔨 Build Your Own Images
 
-Want real voice synthesis instead of the dummy engine? Set two environment variables:
-
-```bash
-# .env
-TTS_ENGINE=xtts_v2
-INSTALL_TTS_DEPS=1
-COQUI_TOS_AGREED=1   # Required: you agree to CPML terms for XTTS-v2
-```
+If you prefer to build locally (e.g., to include a custom HuggingFace model or modify the backend):
 
 ```bash
-docker compose up --build
+# Build XTTS-v2 image
+docker compose --profile xtts-v2 build
+
+# Build Pocket TTS image
+docker compose --profile pocket-tts build
+
+# Build Qwen3-TTS image (model is baked into the image at build time — allow ~5–10 min)
+docker compose --profile qwen3-tts build
+
+# Optional: pass a HuggingFace token if you need gated model access
+HF_TOKEN=your_token docker compose --profile qwen3-tts build
 ```
 
-> ⚠️ **XTTS-v2 licensing**: XTTS-v2 is distributed under Coqui's [CPML](https://coqui.ai/cpml) (non-commercial license). Set `COQUI_TOS_AGREED=1` only if you have a commercial license or agree to CPML terms. See [Coqui's licensing page](https://coqui.ai/cpml) for details.
+After building, start with:
+```bash
+docker compose --profile <profile> up
+```
+
+Verify the Qwen3-TTS model was baked into the image:
+```bash
+docker exec pocket-studio find /app/models -name "*.safetensors" | head -5
+```
 
 ---
 
@@ -69,6 +108,15 @@ docker compose up --build
 
 ### 1 · Clone a Voice
 Upload a clean 5–10 second `.wav` or `.mp3` of the voice you want to clone. The system extracts a voice embedding and stores it locally.
+
+For **Qwen3-TTS ICL mode** (higher fidelity), also provide the exact transcription of your reference audio:
+
+```bash
+curl -X POST http://localhost:8000/api/clone \
+  -F "file=@reference.wav" \
+  -F "name=my-voice" \
+  -F "ref_text=The exact words spoken in the reference audio."
+```
 
 ### 2 · Write Your Script
 Paste any text — from a single sentence to a full podcast segment. Choose your cloned voice and target language.
@@ -84,7 +132,7 @@ Tweak **Speed** and **Temperature** (style/consistency trade-off), hit **Generat
 |---|---|
 | **UI** | React + TypeScript, served as static files |
 | **API** | FastAPI (Python 3.11+) |
-| **TTS Engine** | Pluggable: `xtts_v2` · `pocket_tts` · `dummy` |
+| **TTS Engine** | Pluggable: `xtts_v2` · `pocket_tts` · `qwen3_tts` · `dummy` |
 | **Runtime** | Docker + Docker Compose |
 
 ### Backend Package Structure
@@ -108,15 +156,11 @@ backend/
 | `POST` | `/api/generate` | Synthesize text → WAV audio |
 | `POST` | `/api/generate_stream` | Synthesize text → streaming MP3 |
 
-### Switching Engines
+**`/api/clone` optional field for Qwen3-TTS:**
 
-Pocket Studio's engine layer is pluggable via the `TTS_ENGINE` environment variable:
-
-| Value | Description |
-|---|---|
-| `xtts_v2` | Coqui XTTS-v2 — multilingual, voice cloning (default with deps installed) |
-| `pocket_tts` | Pocket TTS — English-only, lightweight |
-| `dummy` | Silent placeholder WAV — fast for UI development |
+| Field | Type | Description |
+|---|---|---|
+| `ref_text` | `string` (optional) | Transcription of the reference audio — enables higher-quality ICL mode |
 
 ---
 
@@ -126,7 +170,7 @@ All settings are environment variables (see `.env.example`):
 
 | Variable | Default | Description |
 |---|---|---|
-| `TTS_ENGINE` | `dummy` | TTS engine to use (`xtts_v2`, `pocket_tts`, `dummy`) |
+| `TTS_ENGINE` | `dummy` | TTS engine: `xtts_v2`, `pocket_tts`, `qwen3_tts`, `dummy` |
 | `VOICES_DIR` | `./voices` | Directory for voice embeddings |
 | `OUTPUTS_DIR` | `./outputs` | Directory for generated audio |
 | `MAX_AUDIO_UPLOAD_SIZE_MB` | `5` | Max upload size for reference audio |
@@ -135,6 +179,36 @@ All settings are environment variables (see `.env.example`):
 | `MIN_SPEED` / `MAX_SPEED` | `0.5` / `2.0` | Speed multiplier range |
 | `MIN_TEMPERATURE` / `MAX_TEMPERATURE` | `0.0` / `1.5` | Temperature/style range |
 | `COQUI_TOS_AGREED` | `0` | Required for XTTS-v2 (`1` = accepted CPML terms) |
+| `HF_TOKEN` | _(empty)_ | HuggingFace token (only needed for gated models) |
+| `QWEN3_TTS_MODEL` | `Qwen/Qwen3-TTS-12Hz-0.6B-Base` | Qwen3-TTS model ID |
+| `HF_HOME` | `/app/models` | HuggingFace cache root inside container |
+| `PORT` | `8000` | Host port to expose the service on |
+
+---
+
+## 🖥️ Local Development (Qwen3-TTS)
+
+For local development without Docker:
+
+```bash
+# Create venv and install dependencies (Python 3.11 recommended)
+chmod +x setup-dev.sh && ./setup-dev.sh
+
+# Activate venv
+source .venv/bin/activate
+
+# Download the model locally (~1–2 GB)
+HF_HOME=./models python docker/download_model.py
+
+# Run the backend
+TTS_ENGINE=qwen3_tts HF_HOME=./models uvicorn backend.main:app --reload
+```
+
+> **Note:** `sox` is required by `librosa` and must be installed at the OS level:
+> ```bash
+> sudo apt-get install sox libsox-fmt-all   # Debian/Ubuntu
+> brew install sox                           # macOS
+> ```
 
 ---
 
