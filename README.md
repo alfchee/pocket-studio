@@ -23,13 +23,13 @@ No cloud accounts. No API keys. No subscriptions.
 
 ## 🤖 TTS Engines
 
-Pocket Studio supports three TTS engines selectable via Docker Compose profiles:
+Pocket Studio supports three TTS engines selectable via Docker Compose profiles. You can also **download** the images with the models already included from Docker Hub.
 
 | Engine | Profile | Docker Hub Image | Description |
 |---|---|---|---|
-| **XTTS-v2** | `xtts-v2` | `alfchee/pocket-studio-xtts-v2` | Coqui XTTS-v2 — 17 languages, high-quality voice cloning |
-| **Pocket TTS** | `pocket-tts` | `alfchee/pocket-studio-pocket-tts` | Lightweight English-only TTS |
-| **Qwen3-TTS** | `qwen3-tts` | `alfchee/pocket-studio-qwen3-tts` | Qwen3-TTS — multilingual, CPU-friendly, voice cloning with ICL mode |
+| **XTTS-v2** | `xtts-v2` | [alfchee/pocket-studio-xtts-v2](https://hub.docker.com/r/alfchee/pocket-studio-xtts-v2) | Coqui XTTS-v2 — 17 languages, high-quality voice cloning |
+| **Pocket TTS** | `pocket-tts` | [alfchee/pocket-studio-pocket-tts](https://hub.docker.com/r/alfchee/pocket-studio-qwen3-tts) | Lightweight English-only TTS |
+| **Qwen3-TTS** | `qwen3-tts` | [alfchee/pocket-studio-qwen3-tts](https://hub.docker.com/r/alfchee/pocket-studio-pocket-tts) | Qwen3-TTS — multilingual, CPU-friendly, voice cloning with ICL mode |
 
 ---
 
